@@ -106,6 +106,7 @@ class StaticNeedleSegmentationWidget(ScriptedLoadableModuleWidget):
     self.enableScreenshotsFlagCheckBox.setToolTip("If checked, take screen shots for tutorials. Use Save Data to write them to disk.")
     parametersFormLayout.addRow("Enable Screenshots", self.enableScreenshotsFlagCheckBox)
 
+
     #
     # Apply Button
     #
@@ -114,11 +115,37 @@ class StaticNeedleSegmentationWidget(ScriptedLoadableModuleWidget):
     self.applyButton.enabled = False
     parametersFormLayout.addRow(self.applyButton)
 
+    #
+    # Advanced Area
+    #
+    advancedCollapsibleButton = ctk.ctkCollapsibleButton()
+    advancedCollapsibleButton.text = "Advanced"
+    self.layout.addWidget(advancedCollapsibleButton)
+
+    # Layout within the dummy collapsible button
+    advancedFormLayout = qt.QFormLayout(advancedCollapsibleButton)
+
+    #
+    # Manual Segmentation points selector
+    #
+    self.manSegPointsSelector = slicer.qMRMLNodeComboBox()
+    self.manSegPointsSelector.nodeTypes = ["vtkMRMLMarkupsFiducialNode"]
+    self.manSegPointsSelector.selectNodeUponCreation = True
+    self.manSegPointsSelector.addEnabled = True
+    self.manSegPointsSelector.removeEnabled = True
+    self.manSegPointsSelector.noneEnabled = True
+    self.manSegPointsSelector.showHidden = False
+    self.manSegPointsSelector.showChildNodeTypes = False
+    self.manSegPointsSelector.setMRMLScene( slicer.mrmlScene )
+    self.manSegPointsSelector.setToolTip( "Select the markups fiducial where the output will be returned." )
+    parametersFormLayout.addRow("Output Points: ", self.manSegPointsSelector)
+
     # connections
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
     self.imageSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
     self.seedSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
     self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
+    self.manSegPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -135,7 +162,7 @@ class StaticNeedleSegmentationWidget(ScriptedLoadableModuleWidget):
   def onApplyButton(self):
     logic = StaticNeedleSegmentationLogic()
     enableScreenshotsFlag = self.enableScreenshotsFlagCheckBox.checked
-    logic.run(self.imageSelector.currentNode(), self.seedSelector.currentNode(), self.outputSelector.currentNode(), enableScreenshotsFlag)
+    logic.run(self.imageSelector.currentNode(), self.seedSelector.currentNode(), self.outputSelector.currentNode(), self.manSegPointSelector.currentNode(), enableScreenshotsFlag)
 
 #
 # StaticNeedleSegmentationLogic
@@ -215,7 +242,10 @@ class StaticNeedleSegmentationLogic(ScriptedLoadableModuleLogic):
     annotationLogic = slicer.modules.annotations.logic()
     annotationLogic.CreateSnapShot(name, description, type, 1, imageData)
 
-  def run(self, inputVolume, inputSeedFiducial, outputPoints, enableScreenshots=0):
+  def compareToManualSeg():
+    print("One day I'll be a real function! Please write me Jessica!!")
+
+  def run(self, inputVolume, inputSeedFiducial, outputPoints, manSegPoints, enableScreenshots=0):
     """
     Run the actual algorithm
     """
@@ -279,7 +309,6 @@ class StaticNeedleSegmentationLogic(ScriptedLoadableModuleLogic):
     print("Output from exe: " + outputFromExe)
     print("seed point: " + seedPointString)
 
-
     #Pass results of algorithm to output markups fiducial
     outputPoints.RemoveAllMarkups()
     outputFromExe_floats = map(float, outputFromExe.split())
@@ -292,6 +321,17 @@ class StaticNeedleSegmentationLogic(ScriptedLoadableModuleLogic):
 
     outputPoints.AddFiducialFromArray(tip)
     outputPoints.AddFiducialFromArray(tail)
+
+    #Compare algorithm results to manually selected fiducials
+    ####
+    #Jess's code will go here
+    ####
+
+    #Extrapolate points on needle to extent of image volume
+
+
+    #Generate model of needle from points (radius of 1mm)
+
 
     # Capture screenshot
     if enableScreenshots:
