@@ -1,6 +1,5 @@
 StaticNeedleSegmentation\StaticNeedleTestBed.exe
 *.mha
-*.txt
 *.exe
 *.pyc
 *.mhd
