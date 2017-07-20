@@ -1,4 +1,7 @@
 StaticNeedleSegmentation\StaticNeedleTestBed.exe
-inputImage.mha
+*.mha
 *.txt
 *.exe
+*.pyc
+*.mhd
+*.nrrd
