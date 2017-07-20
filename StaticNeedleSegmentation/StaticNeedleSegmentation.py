@@ -138,7 +138,15 @@ class StaticNeedleSegmentationWidget(ScriptedLoadableModuleWidget):
     self.manSegPointsSelector.showChildNodeTypes = False
     self.manSegPointsSelector.setMRMLScene( slicer.mrmlScene )
     self.manSegPointsSelector.setToolTip( "Select the markups fiducial where the output will be returned." )
-    parametersFormLayout.addRow("Output Points: ", self.manSegPointsSelector)
+    advancedFormLayout.addRow("Output Points: ", self.manSegPointsSelector)
+
+    #
+    # check box to select if models of segmentations should be generated
+    #
+    self.enableNeedleModelsFlagCheckBox = qt.QCheckBox()
+    self.enableNeedleModelsFlagCheckBox.checked = 1
+    self.enableNeedleModelsFlagCheckBox.setToolTip("If checked, models are generated from points defining segmentations.")
+    advancedFormLayout.addRow("Generate Needle Models", self.enableNeedleModelsFlagCheckBox)
 
     # connections
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -162,7 +170,10 @@ class StaticNeedleSegmentationWidget(ScriptedLoadableModuleWidget):
   def onApplyButton(self):
     logic = StaticNeedleSegmentationLogic()
     enableScreenshotsFlag = self.enableScreenshotsFlagCheckBox.checked
-    logic.run(self.imageSelector.currentNode(), self.seedSelector.currentNode(), self.outputSelector.currentNode(), self.manSegPointSelector.currentNode(), enableScreenshotsFlag)
+    enableNeedleModelsFlag = self.enableNeedleModelsFlagCheckBox.checked
+    logic.run(self.imageSelector.currentNode(), self.seedSelector.currentNode(),
+              self.outputSelector.currentNode(), self.manSegPointsSelector.currentNode(),
+              enableNeedleModelsFlag, enableScreenshotsFlag )
 
 #
 # StaticNeedleSegmentationLogic
@@ -242,10 +253,10 @@ class StaticNeedleSegmentationLogic(ScriptedLoadableModuleLogic):
     annotationLogic = slicer.modules.annotations.logic()
     annotationLogic.CreateSnapShot(name, description, type, 1, imageData)
 
-  def compareToManualSeg():
+  def compareToManualSeg(self):
     print("One day I'll be a real function! Please write me Jessica!!")
 
-  def run(self, inputVolume, inputSeedFiducial, outputPoints, manSegPoints, enableScreenshots=0):
+  def run(self, inputVolume, inputSeedFiducial, outputPoints, manSegPoints, enableNeedleModels,enableScreenshots=0):
     """
     Run the actual algorithm
     """
@@ -255,7 +266,7 @@ class StaticNeedleSegmentationLogic(ScriptedLoadableModuleLogic):
     #   return False
 
     logging.info('Processing started')
-
+    print(enableNeedleModels)
     #Hard coded parameters for passing between slicer and executable through files on disk
     inputImageFileName = 'inputImage.mha'
     outputResultsFileName = 'segmentationOutput.txt'
