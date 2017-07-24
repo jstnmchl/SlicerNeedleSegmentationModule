@@ -4,6 +4,7 @@ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import logging
 import subprocess
+import numpy
 
 #
 # StaticNeedleSegmentation
@@ -137,8 +138,16 @@ class StaticNeedleSegmentationWidget(ScriptedLoadableModuleWidget):
     self.manSegPointsSelector.showHidden = False
     self.manSegPointsSelector.showChildNodeTypes = False
     self.manSegPointsSelector.setMRMLScene( slicer.mrmlScene )
-    self.manSegPointsSelector.setToolTip( "Select the markups fiducial where the output will be returned." )
-    advancedFormLayout.addRow("Output Points: ", self.manSegPointsSelector)
+    self.manSegPointsSelector.setToolTip( "Select the markups fiducial containing the manually selected tip." )
+    advancedFormLayout.addRow("Manual Tip: ", self.manSegPointsSelector)
+
+    self.numToAddSliderWidget = ctk.ctkSliderWidget()
+    self.numToAddSliderWidget.singleStep = 5.0
+    self.numToAddSliderWidget.minimum = 0.0
+    self.numToAddSliderWidget.maximum = 90.0
+    self.numToAddSliderWidget.value = 45.0
+    self.numToAddSliderWidget.toolTip = "Input the expected insertion angle relative to the A-P axis."
+    advancedFormLayout.addRow("Insertion Angle: ", self.numToAddSliderWidget)
 
     #
     # check box to select if models of segmentations should be generated
@@ -173,7 +182,7 @@ class StaticNeedleSegmentationWidget(ScriptedLoadableModuleWidget):
     enableNeedleModelsFlag = self.enableNeedleModelsFlagCheckBox.checked
     logic.run(self.imageSelector.currentNode(), self.seedSelector.currentNode(),
               self.outputSelector.currentNode(), self.manSegPointsSelector.currentNode(),
-              enableNeedleModelsFlag, enableScreenshotsFlag )
+              self.numToAddSliderWidget.value, enableNeedleModelsFlag, enableScreenshotsFlag, )
 
 #
 # StaticNeedleSegmentationLogic
@@ -253,10 +262,89 @@ class StaticNeedleSegmentationLogic(ScriptedLoadableModuleLogic):
     annotationLogic = slicer.modules.annotations.logic()
     annotationLogic.CreateSnapShot(name, description, type, 1, imageData)
 
-  def compareToManualSeg(self):
-    print("One day I'll be a real function! Please write me Jessica!!")
+  def compareToManualSeg(self, tip, tail , manSegPoints, insertAngle):
+    # print("One day I'll be a real function! Please write me Jessica!!")
+    # get manually selected point
+    manualTip = [0.0, 0.0, 0.0]
+    manSegPoints.GetNthFiducialPosition(0, manualTip)
+    # manualTipString = "{0:.10} {1:.10} {2:.10}".format(manualTip[0], manualTip[1], manualTip[2])
+    # print("manual tip: " + manualTipString)
 
-  def run(self, inputVolume, inputSeedFiducial, outputPoints, manSegPoints, enableNeedleModels,enableScreenshots=0):
+    # calculate the distance between needle tips
+    tipError = numpy.sqrt((tip[0]-manualTip[0])**2 + (tip[1]-manualTip[1])**2 + (tip[2]-manualTip[2])**2)
+    tipErrorString = "{0:.10}".format(tipError)
+    print("Tip error is " + tipErrorString + " mm.")
+
+    # calculate the directional vectors for the algorithm and manual segmentations
+    algoVector = [a - b for a, b in zip(tip, tail)]
+    manualVector = [a - b for a, b in zip(manualTip, tail)]
+
+    # normalize the vectors
+    algoLength = numpy.sqrt(algoVector[0]**2 + algoVector[1]**2 + algoVector[2]**2)
+    manualLength = numpy.sqrt(manualVector[0] ** 2 + manualVector[1] ** 2 + manualVector[2] ** 2)
+    algoVector = [a / algoLength for a in algoVector]
+    manualVector = [a / manualLength for a in manualVector]
+
+    # calculate the dot product and compute the trajectory difference
+    dotProduct = numpy.dot(algoVector, manualVector)
+    trajError = numpy.arccos(dotProduct)
+    trajError = numpy.degrees(trajError)
+    trajErrorString = "{0:.10}".format(trajError)
+    print("Trajectory error is " + trajErrorString + " degrees.")
+
+    # calculate the active tip error
+    algoActTip = [a * 10 for a in algoVector]
+    algoActTip = [a - b for a,b in zip(tip, algoActTip)]
+    manualActTip = [a * 10 for a in manualVector]
+    manualActTip = [a - b for a,b in zip(tip, manualActTip)]
+    actTipError = numpy.sqrt((algoActTip[0] - manualActTip[0]) ** 2 + (algoActTip[1] - manualActTip[1]) ** 2 + (algoActTip[2] - manualActTip[2]) ** 2)
+    actTipErrorString = "{0:.10}".format(actTipError)
+    print("Active tip error is " + actTipErrorString + " mm.")
+
+    # calculate the difference from expected insertion angle
+    insertString = "{0:.10}".format(insertAngle)
+    print("Expected insertion angle is " + insertString + " degrees.")
+
+    # calculate insertion angle of algorithmically segmented needle
+    dotProduct = -1 * algoVector[1]
+    algoAngle = numpy.arccos(dotProduct)
+    algoAngle = numpy.degrees(algoAngle)
+    algoAngleString = "{0:.10}".format(algoAngle)
+    print("Segmented insertion angle is " + algoAngleString + " degrees.")
+
+    # calculate insertion angle error
+    angleDiff = numpy.absolute(insertAngle - algoAngle)
+    angleDiffString = "{0:.10}".format(angleDiff)
+    print("Insertion angle difference is " + angleDiffString + " degrees.")
+
+    # check if a metrics table has already been created
+    if not slicer.util.getNode('Metrics'):
+      tableNode = slicer.vtkMRMLTableNode()
+      tableNode.SetName('Metrics')
+      col = tableNode.AddColumn()
+      col.SetName('Tip Difference (mm)')
+      col = tableNode.AddColumn()
+      col.SetName('Active Tip Difference (mm)')
+      col = tableNode.AddColumn()
+      col.SetName('Trajectory Difference (deg)')
+      col = tableNode.AddColumn()
+      col.SetName('Segmented Insertion Angle (deg)')
+      col = tableNode.AddColumn()
+      col.SetName('Insertion Angle Difference (deg)')
+      slicer.mrmlScene.AddNode(tableNode)
+    else:
+      tableNode = slicer.util.getNode('Metrics')
+
+    # populates a table with the metrics values
+    tableNode.AddEmptyRow()
+    row = tableNode.GetNumberOfRows() - 1
+    tableNode.SetCellText(row, 0, tipErrorString)
+    tableNode.SetCellText(row, 1, actTipErrorString)
+    tableNode.SetCellText(row, 2, trajErrorString)
+    tableNode.SetCellText(row, 3, algoAngleString)
+    tableNode.SetCellText(row, 4, angleDiffString)
+
+  def run(self, inputVolume, inputSeedFiducial, outputPoints, manSegPoints, insertAngle, enableNeedleModels,enableScreenshots=0):
     """
     Run the actual algorithm
     """
@@ -361,7 +449,11 @@ class StaticNeedleSegmentationLogic(ScriptedLoadableModuleLogic):
 
     #Compare algorithm results to manually selected fiducials
     ####
-    #Jess's code will go here
+    #Check whether or not a manually selected tip has been input
+    if manSegPoints.GetNumberOfFiducials() == 0:
+      print('No manually selected tip.')
+    else:
+      self.compareToManualSeg(tip, tail, manSegPoints, insertAngle)
     ####
 
     #Extrapolate points on needle to extent of image volume
