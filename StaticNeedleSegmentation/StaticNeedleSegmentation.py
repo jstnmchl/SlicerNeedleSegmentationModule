@@ -296,7 +296,7 @@ class StaticNeedleSegmentationLogic(ScriptedLoadableModuleLogic):
     algoActTip = [a * 10 for a in algoVector]
     algoActTip = [a - b for a,b in zip(tip, algoActTip)]
     manualActTip = [a * 10 for a in manualVector]
-    manualActTip = [a - b for a,b in zip(tip, manualActTip)]
+    manualActTip = [a - b for a,b in zip(manualTip, manualActTip)]
     actTipError = numpy.sqrt((algoActTip[0] - manualActTip[0]) ** 2 + (algoActTip[1] - manualActTip[1]) ** 2 + (algoActTip[2] - manualActTip[2]) ** 2)
     actTipErrorString = "{0:.10}".format(actTipError)
     print("Active tip error is " + actTipErrorString + " mm.")
@@ -424,7 +424,7 @@ class StaticNeedleSegmentationLogic(ScriptedLoadableModuleLogic):
     #Compare algorithm results to manually selected fiducials
     ####
     #Check whether or not a manually selected tip has been input
-    if manSegPoints.GetNumberOfFiducials() == 0:
+    if manSegPoints is None or manSegPoints.GetNumberOfFiducials() == 0:
       print('No manually selected tip.')
     else:
       self.compareToManualSeg(tip, tail, manSegPoints, insertAngle)
