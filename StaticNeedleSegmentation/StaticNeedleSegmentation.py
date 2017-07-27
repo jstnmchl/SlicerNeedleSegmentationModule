@@ -398,7 +398,7 @@ class StaticNeedleSegmentationLogic(ScriptedLoadableModuleLogic):
     #Call needle segmentation algorithm
     exeFullPath = os.path.join(dir_path,exeName)
     seedPointString = "{0:.10} {1:.10} {2:.10}".format(seedPoint[0], seedPoint[1], seedPoint[2])
-    commandLineCall = exeFullPath + " " + inputImageFullPath + " " + seedPointString
+    commandLineCall = "\"" + exeFullPath + "\"" + " " + "\"" + inputImageFullPath + "\"" + " " + seedPointString
     outputFromExe = subprocess.check_output(commandLineCall )
     #  'C:\\1-Projects\\StaticNeedleTestBed_VS_2013\\x64\\Release\\StaticNeedleTestBed C:\\1-Projects\\StaticNeedleTestBed_VS_2013\\x64\\Release\\LeftAngle45med.mha 91.6299 27.8934 66.8955')
 
