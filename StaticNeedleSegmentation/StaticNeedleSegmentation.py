@@ -263,7 +263,6 @@ class StaticNeedleSegmentationLogic(ScriptedLoadableModuleLogic):
     annotationLogic.CreateSnapShot(name, description, type, 1, imageData)
 
   def compareToManualSeg(self, tip, tail , manSegPoints, insertAngle):
-    # print("One day I'll be a real function! Please write me Jessica!!")
     # get manually selected point
     manualTip = [0.0, 0.0, 0.0]
     manSegPoints.GetNthFiducialPosition(0, manualTip)
