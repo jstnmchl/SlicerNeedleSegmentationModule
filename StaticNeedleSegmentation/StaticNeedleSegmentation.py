@@ -383,20 +383,30 @@ class StaticNeedleSegmentationLogic(ScriptedLoadableModuleLogic):
     print('Image successfully written to ' + inputImageFullPath)
 
     #Get seed point
-    seedPoint = [0.0, 0.0, 0.0]
-    ##FIRST CHECK ONLY ONE POINT IN MARKUPS FIDUCIAL
-    inputSeedFiducial.GetNthFiducialPosition(0, seedPoint)
-    #convert from LPS to RAS
-    seedPoint[0] = -1*seedPoint[0]
-    seedPoint[1] = -1 * seedPoint[1]
-    #lpsToRas = vtk.vtkMatrix4x4()
-    #lpsToRas = vtk.vtkMatrix4x4()
-    #lpsToRas.SetElement(0, 0, -1)
-    #lpsToRas.SetElement(1, 1, -1)
+    seedPoint_slicer = [0.0, 0.0, 0.0]  # seedPoint in RAS coordinates of slicer
+    inputSeedFiducial.GetNthFiducialPosition(0, seedPoint_slicer)
+    seedPoint_slicer = seedPoint_slicer + [1]  # pad to make homogeneous vector
+    # Transform seed to account for any transforms applied to the image
+    transformID = inputVolume.GetTransformNodeID()
+
+    if transformID != None:  # if image has been transformed
+      transformNode = slicer.mrmlScene.GetNodeByID(transformID)
+      invertedTransformMatrix = transformNode.GetMatrixTransformFromParent()  # applied transform is 'toParent', 'fromParent' is inverse
+      seedPoint_noTrans = [0.0, 0.0, 0.0, 0.0]
+      invertedTransformMatrix.MultiplyPoint(seedPoint_slicer, seedPoint_noTrans)
+    else:
+      seedPoint_noTrans = seedPoint_slicer
+
+    # Account for ijk to RAS direction matrix (e.g. LPS vs RAS incongruencies)
+    ijkToRasDirs = vtk.vtkMatrix4x4()
+    inputVolume.GetIJKToRASDirectionMatrix(ijkToRasDirs)
+    seedPoint_dirConv = [0.0, 0.0, 0.0, 0.0]  # seed point after correcting for direction conventions (e.g. LPS vs RAS)
+    ijkToRasDirs.MultiplyPoint(seedPoint_noTrans, seedPoint_dirConv)
+    seedPoint_dirConv = seedPoint_dirConv[:3]
 
     #Call needle segmentation algorithm
     exeFullPath = os.path.join(dir_path,exeName)
-    seedPointString = "{0:.10} {1:.10} {2:.10}".format(seedPoint[0], seedPoint[1], seedPoint[2])
+    seedPointString = "{0:.10} {1:.10} {2:.10}".format(seedPoint_dirConv[0], seedPoint_dirConv[1], seedPoint_dirConv[2])
     commandLineCall = "\"" + exeFullPath + "\"" + " " + "\"" + inputImageFullPath + "\"" + " " + seedPointString
     outputFromExe = subprocess.check_output(commandLineCall )
     #  'C:\\1-Projects\\StaticNeedleTestBed_VS_2013\\x64\\Release\\StaticNeedleTestBed C:\\1-Projects\\StaticNeedleTestBed_VS_2013\\x64\\Release\\LeftAngle45med.mha 91.6299 27.8934 66.8955')
@@ -410,12 +420,22 @@ class StaticNeedleSegmentationLogic(ScriptedLoadableModuleLogic):
     #Pass results of algorithm to output markups fiducial
     outputPoints.RemoveAllMarkups()
     outputFromExe_floats = map(float, outputFromExe.split())
-    tip = outputFromExe_floats[:3]
-    tip[0] = -1*tip[0]
-    tip[1] = -1*tip[1]
-    tail = outputFromExe_floats[3:6]
-    tail[0] = -1*tail[0]
-    tail[1] = -1*tail[1]
+    rasToIjkDirs = vtk.vtkMatrix4x4()
+    vtk.vtkMatrix4x4.Invert(ijkToRasDirs, rasToIjkDirs)  # transform usually symmetrical (T = T^-1) but invert to be sure
+    tip = [0, 0, 0, 0]
+    tail = [0, 0, 0, 0]
+    rasToIjkDirs.MultiplyPoint(outputFromExe_floats[:3] + [1], tip)
+    rasToIjkDirs.MultiplyPoint(outputFromExe_floats[3:6] + [1], tail)
+
+    ##reapply transform (if present) to output points
+    if transformID != None:  # if image has been transformed
+      transformMatrix = transformNode.GetMatrixTransformToParent()  # applied transform is 'toParent', 'fromParent' is inverse
+      transformMatrix.MultiplyPoint(tip, tip)
+      transformMatrix.MultiplyPoint(tail, tail)
+
+    tip = tip[:3]
+    tail = tail[:3]
+
 
     outputPoints.AddFiducialFromArray(tip)
     outputPoints.AddFiducialFromArray(tail)
